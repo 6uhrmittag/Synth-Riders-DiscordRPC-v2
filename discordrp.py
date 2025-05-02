@@ -76,12 +76,24 @@ class Presence:
                 mapper = song_info.get("mapper", "Unknown")
                 cover_url = song_info.get("cover_url")
 
+                # Get song duration and start time for progress bar
+                duration = song_info.get("duration")  # Duration in seconds
+                song_start_time = song_info.get("start_time")  # When the song started
+
                 # Build the update data
                 update_data = {
                     "state": f"{song_name} by {artist}",
-                    "details": f"{difficulty} (mapped by {mapper})",
-                    "start": self.start_time
+                    "details": f"{difficulty} (mapped by {mapper})"
                 }
+
+                # Add progress bar if we have song duration
+                if duration and song_start_time:
+                    # Use song start time for the progress bar
+                    update_data["start"] = song_start_time
+                    update_data["end"] = song_start_time + duration
+                else:
+                    # Fall back to just showing start time
+                    update_data["start"] = self.start_time
 
                 # Use the uploaded cover URL if available, otherwise use default logo
                 if cover_url:

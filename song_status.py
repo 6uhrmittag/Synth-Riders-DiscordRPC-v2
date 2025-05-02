@@ -3,6 +3,8 @@ import time
 import re
 import requests
 import tempfile
+from datetime import datetime
+from utils.synth_db import get_song_details_from_synthdb
 
 class SongStatusWatcher:
     """
@@ -15,9 +17,12 @@ class SongStatusWatcher:
         self.cover_image_path = config.get("cover_image_path",
                                          "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SynthRiders\\SynthRidersUC\\SongStatusImage.png")
         self.image_upload_url = config.get("image_upload_url", "https://uguu.se/upload")
+        self.db_path = config.get("synth_db_path",
+                                "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SynthRiders\\SynthDB")
         self.last_modified = 0
         self.current_song = None
         self.has_cover_image = False
+        self.song_start_time = None
 
     def check_for_updates(self):
         """
@@ -121,6 +126,26 @@ class SongStatusWatcher:
                 song_info['cover_url'] = self.upload_image(self.cover_image_path)
             else:
                 song_info['cover_url'] = None
+
+            # Get song details from SynthDB
+            db_details = get_song_details_from_synthdb(self.db_path, song_info['song_name'], song_info['artist'])
+            if db_details:
+                # Add database details to song_info
+                song_info['duration'] = db_details['duration']
+                song_info['bpm'] = db_details['bpm']
+                song_info['year'] = db_details['year']
+                song_info['is_custom'] = db_details['is_custom']
+                song_info['environment'] = db_details['environment']
+
+                # If mapper wasn't detected from the status text but exists in DB, use the DB value
+                if song_info['mapper'] == "Unknown" and db_details['mapper']:
+                    song_info['mapper'] = db_details['mapper']
+
+            # Set the song start time when a new song is detected
+            if self.current_song is None or self.current_song.get('song_name') != song_info['song_name']:
+                self.song_start_time = int(time.time())
+
+            song_info['start_time'] = self.song_start_time
 
             self.current_song = song_info
             return song_info
