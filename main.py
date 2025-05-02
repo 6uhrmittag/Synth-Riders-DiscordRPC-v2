@@ -1,5 +1,4 @@
 import os
-from discordrp import Presence
 import time
 import psutil
 import logging
@@ -13,15 +12,19 @@ import configparser
 import requests
 import webbrowser
 
+# Import our new song status watcher
+from song_status import SongStatusWatcher
+from discordrp import Presence
+
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 
 def read_ini():
     conf = configparser.ConfigParser()
-    path = "./settings/appinfo.ini"  # .replace("main.py", "appinfo.ini")
+    path = "./settings/appinfo.ini"
     if os.path.isfile(path):
         conf.read(path, encoding="UTF-8")
     else:
-        conf.read(rf"{script_dir}\appinfo.ini", encoding="UTF-8")
+        conf.read(rf"{script_dir}\settings\appinfo.ini", encoding="UTF-8")
     return conf["PROFILE"]["AppVersion"]
 
 def read_server_ini():
@@ -40,7 +43,7 @@ class taskTray:
     def __init__(self):
         self.status = False
 
-        image = Image.open(resource_path("icon.PNG"))
+        image = Image.open(resource_path("assets/game_synthriders_logo_square.jpg"))
 
         local_version = read_ini()
         server_version = read_server_ini()
@@ -56,7 +59,7 @@ class taskTray:
             MenuItem("Exit", self.stop_program),
         )
 
-        self.icon = Icon(name="ifnikkiRPC", title="ifnikkiRPC", icon=image, menu=menu)
+        self.icon = Icon(name="SynthRidersRPC", title="Synth Riders Discord RPC", icon=image, menu=menu)
 
     def open_gitpage(self):
         url = "https://github.com/yuzune27/IfnikkiRPC/releases"
@@ -75,27 +78,10 @@ def get_config():
         with open("./settings/config.json", "r", encoding="UTF-8") as f:
             data = json.load(f)
     except FileNotFoundError:
-        with open(rf"{script_dir}\config.json", "r", encoding="UTF-8") as f:
+        with open(rf"{script_dir}\settings\config.json", "r", encoding="UTF-8") as f:
             data = json.load(f)
 
-    lang = data["Lang"]
-    player = data["Player"]
-    uid = data["UID"]
-    fc = data["FriendCode"]
-    btn_label = data["BtnLabel"]
-    btn_url = data["BtnUrl"]
-
-    if data["UIDVisible"]:
-        details = f"UID: {uid}"
-    else:
-        details = f"UID: ****"
-
-    if data["FCVisible"]:
-        state = f"FC: {fc}"
-    else:
-        state = f"FC: ****"
-
-    return lang, player, details, state, btn_label, btn_url
+    return data
 
 def process_check():
     for proc in psutil.process_iter():
@@ -104,61 +90,31 @@ def process_check():
         except (psutil.AccessDenied, psutil.NoSuchProcess):
             pass
         else:
-            if "X6Game-Win64-Shipping.exe" in get_proc:  # Debug -> pycharm64.exe
+            if "SynthRiders.exe" in get_proc:
                 return proc.pid
     return False
 
-def lang_to_cid(lang):
-    if lang == "ja":
-        cid = "1293228317943529483"
-    elif lang == "en":
-        cid = "1314912127919853669"
-    else:
-        cid = "1293228317943529483"
+def rpc_loop(presence, song_watcher, config):
+    while True:
+        if process_check():
+            # Game is running, check for song updates
+            song_info = song_watcher.get_song_status()
+            presence.update_song_status(song_info, config)
+            time.sleep(5)  # Check for updates every 5 seconds
+        else:
+            # Game is not running
+            presence.update_song_status(None, config)
+            time.sleep(15)  # Check less frequently when game is not running
 
-    return cid
-
-def rpc(lang, player, details, state, label, url):
-    start_time = int(time.time())
-    version = read_ini()
-
-    cid = lang_to_cid(lang)
-
-    data = [{
-        "details": details,
-        "state": state,
-        "timestamps": {
-            "start": start_time
-        },
-        "assets": {
-            "large_image": "ifnikkik_new",
-            "large_text": "ifnikkiRPC v" + version,
-            "small_image": "ifnsmallk",
-            "small_text": player
-        },
-        "buttons": [
-            {
-                "label": label,
-                "url": url
-            }
-        ]
-    }, ]
-
-    with Presence(cid) as presence:
-        presence.set(data[0])
-        while True:
+            # If game was closed and restarted, we should check again sooner
             if process_check():
-                if (lang, player, details, state, label, url) != get_config():
-                    lang, player, details, state, label, url = get_config()
-                    data[0]["assets"]["small_text"] = player
-                    data[0]["details"] = details
-                    data[0]["state"] = state
-                    data[0]["buttons"][0]["label"] = label
-                    data[0]["buttons"][0]["url"] = url
-                    presence.set(data[0])
-                time.sleep(15)
-            else:
-                break
+                continue
+
+            # Game still not running after waiting
+            break
+
+    # Disconnect when done
+    presence.disconnect()
 
 def log_write(dt, status, app, content):
     os.makedirs("log", exist_ok=True)
@@ -168,36 +124,42 @@ def log_write(dt, status, app, content):
     logging.basicConfig(filename=log_path, encoding="utf-8", level=logging.INFO, format="[%(asctime)s] %(message)s")
     if status == "ok":
         if app:
-            info_text = f"InfinityNikki is running(PID: {app}). Executes an RPC function."
+            info_text = f"Synth Riders is running(PID: {app}). Executing RPC function."
         else:
-            info_text = f"InfinityNikki is not running. waiting..."
+            info_text = f"Synth Riders is not running. waiting..."
         logger.info(info_text)
     elif status == "error":
         logger.error(f"Unexpected error occurred.\n{content}")
 
-
 def app_run():
     dt_now = datetime.now().strftime("%Y%m%d%H%M%S%f")
     try:
-        lang, player, details, state, label, url = get_config()
+        config = get_config()
+
+        # Initialize Discord Rich Presence
+        discord_app_id = config.get("discord_application_id", "1124356298578870333")
+        presence = Presence(discord_app_id)
+
+        # Initialize Song Status Watcher
+        song_watcher = SongStatusWatcher(config)
+
+        while True:
+            try:
+                pid = process_check()
+                if pid:
+                    log_write(dt=dt_now, status="ok", app=pid, content=None)
+                    rpc_loop(presence, song_watcher, config)
+                else:
+                    log_write(dt=dt_now, status="ok", app=False, content=None)
+                time.sleep(15)
+            except Exception as e:
+                log_write(dt=dt_now, status="error", app=None, content=e)
+                break
     except Exception as e:
         log_write(dt=dt_now, status="error", app=None, content=e)
         return
-    while True:
-        try:
-            pid = process_check()
-            if pid:
-                log_write(dt=dt_now, status="ok", app=pid, content=None)
-                rpc(lang, player, details, state, label, url)
-            else:
-                log_write(dt=dt_now, status="ok", app=False, content=None)
-            time.sleep(15)
-        except Exception as e:
-            log_write(dt=dt_now, status="error", app=None, content=e)
-            break
-
 
 if __name__ == "__main__":
     Thread(target=app_run, daemon=True).start()
-    tray = taskTray()
-    tray.run_program()
+    taskTray().run_program()
+

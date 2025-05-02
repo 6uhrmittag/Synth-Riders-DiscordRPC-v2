@@ -6,5 +6,11 @@
   "UIDVisible": true,
   "FCVisible": false,
   "BtnLabel": "公式サイト",
-  "BtnUrl": "https://infinitynikki.infoldgames.com/ja/home"
+  "BtnUrl": "https://infinitynikki.infoldgames.com/ja/home",
+  "discord_application_id": "1124356298578870333",
+  "song_status_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SynthRiders\\SynthRidersUC\\SongStatusOutput.txt",
+  "cover_image_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SynthRiders\\SynthRidersUC\\SongStatusImage.png",
+  "show_button": true,
+  "button_label": "Play Synth Riders",
+  "button_url": "https://synthridersvr.com"
 }

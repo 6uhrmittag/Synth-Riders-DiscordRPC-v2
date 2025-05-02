@@ -2,4 +2,5 @@ requests~=2.32.3
 psutil~=6.0.0
 pystray~=0.19.5
 pillow~=10.4.0
-discord-rich-presence~=1.1.0
+pypresence~=4.2.0
+
