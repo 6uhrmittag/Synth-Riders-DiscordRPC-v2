@@ -11,10 +11,18 @@ from datetime import datetime
 import configparser
 import requests
 import webbrowser
+import asyncio
 
 # Import our new song status watcher
 from song_status import SongStatusWatcher
 from discordrp import Presence
+
+# Setup basic stderr logging for critical errors that might occur before proper logging setup
+logging.basicConfig(
+    level=logging.ERROR,
+    format="[%(asctime)s] %(levelname)s: %(message)s",
+    stream=sys.stderr
+)
 
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 
@@ -28,11 +36,20 @@ def read_ini():
     return conf["PROFILE"]["AppVersion"]
 
 def read_server_ini():
-    url = "https://raw.githubusercontent.com/6uhrmittag/Synth-Riders-DiscordRPC/refs/heads/master/settings/appinfo.ini"
-    r = requests.get(url)
-    conf = configparser.ConfigParser()
-    conf.read_string(r.text)
-    return conf["PROFILE"]["AppVersion"]
+    try:
+        url = "https://raw.githubusercontent.com/6uhrmittag/Synth-Riders-DiscordRPC/master/settings/appinfo.ini"
+        r = requests.get(url)
+        if r.status_code == 200:
+            conf = configparser.ConfigParser()
+            conf.read_string(r.text)
+            return conf["PROFILE"]["AppVersion"]
+        else:
+            # Return local version if server version can't be accessed
+            return read_ini()
+    except Exception as e:
+        logging.error(f"Error fetching server version: {e}")
+        # Return local version as fallback
+        return read_ini()
 
 def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
@@ -43,14 +60,23 @@ class taskTray:
     def __init__(self):
         self.status = False
 
-        image = Image.open(resource_path("assets/game_synthriders_logo_square.jpg"))
+        try:
+            image = Image.open(resource_path("assets/game_synthriders_logo_square.jpg"))
+        except Exception as e:
+            logging.error(f"Error loading icon image: {e}")
+            # Use a blank image as fallback
+            image = Image.new('RGB', (64, 64), color = 'blue')
 
-        local_version = read_ini()
-        server_version = read_server_ini()
+        try:
+            local_version = read_ini()
+            server_version = read_server_ini()
 
-        if local_version != server_version:
-            visible = True
-        else:
+            # Only show update menu if server version is different and not a fallback
+            visible = local_version != server_version and server_version != local_version
+        except Exception as e:
+            logging.error(f"Error checking versions: {e}")
+            local_version = "Unknown"
+            server_version = "Unknown"
             visible = False
 
         menu = Menu(
@@ -117,23 +143,55 @@ def rpc_loop(presence, song_watcher, config):
     presence.disconnect()
 
 def log_write(dt, status, app, content):
-    os.makedirs("log", exist_ok=True)
+    # Create log directory using correct path handling
+    log_dir = os.path.join(script_dir, "log")
+    os.makedirs(log_dir, exist_ok=True)
 
-    logger = logging.getLogger(__name__)
-    log_path = rf"{script_dir}\log\rpc{dt}.log"
-    logging.basicConfig(filename=log_path, encoding="utf-8", level=logging.INFO, format="[%(asctime)s] %(message)s")
-    if status == "ok":
-        if app:
-            info_text = f"Synth Riders is running(PID: {app}). Executing RPC function."
-        else:
-            info_text = f"Synth Riders is not running. waiting..."
-        logger.info(info_text)
-    elif status == "error":
-        logger.error(f"Unexpected error occurred.\n{content}")
+    # Use os.path.join for cross-platform path handling
+    log_file = f"rpc{dt}.log"
+    log_path = os.path.join(log_dir, log_file)
+    
+    try:
+        # Configure logging for file output
+        logging.basicConfig(
+            filename=log_path, 
+            encoding="utf-8", 
+            level=logging.INFO, 
+            format="[%(asctime)s] %(message)s",
+            force=True  # Force reconfiguration to handle multiple calls
+        )
+        
+        logger = logging.getLogger(__name__)
+        
+        if status == "ok":
+            if app:
+                info_text = f"Synth Riders is running(PID: {app}). Executing RPC function."
+            else:
+                info_text = f"Synth Riders is not running. waiting..."
+            logger.info(info_text)
+        elif status == "error":
+            logger.error(f"Unexpected error occurred.\n{content}")
+    except Exception as e:
+        # Fallback to console logging if file logging fails
+        print(f"Failed to write to log: {e}")
+        print(f"Status: {status}, Content: {content}")
+
+import asyncio
 
 def app_run():
     dt_now = datetime.now().strftime("%Y%m%d%H%M%S%f")
+    
     try:
+        # Set up an event loop for this thread
+        asyncio.set_event_loop(asyncio.new_event_loop())
+        
+        # First, try to write a test log entry to verify logging works
+        try:
+            log_write(dt=dt_now, status="ok", app=None, content="Starting application")
+        except Exception as log_error:
+            print(f"Warning: Logging setup failed: {log_error}")
+            # Continue without file logging if it fails
+        
         config = get_config()
 
         # Initialize Discord Rich Presence
@@ -147,16 +205,34 @@ def app_run():
             try:
                 pid = process_check()
                 if pid:
-                    log_write(dt=dt_now, status="ok", app=pid, content=None)
+                    try:
+                        log_write(dt=dt_now, status="ok", app=pid, content=None)
+                    except Exception:
+                        # Continue if logging fails
+                        pass
                     rpc_loop(presence, song_watcher, config)
                 else:
-                    log_write(dt=dt_now, status="ok", app=False, content=None)
+                    try:
+                        log_write(dt=dt_now, status="ok", app=False, content=None)
+                    except Exception:
+                        # Continue if logging fails
+                        pass
                 time.sleep(15)
             except Exception as e:
-                log_write(dt=dt_now, status="error", app=None, content=e)
+                print(f"Error in main loop: {e}")
+                try:
+                    log_write(dt=dt_now, status="error", app=None, content=e)
+                except Exception:
+                    # If logging itself fails, just print to console
+                    pass
                 break
     except Exception as e:
-        log_write(dt=dt_now, status="error", app=None, content=e)
+        print(f"Critical error in app_run: {e}")
+        try:
+            log_write(dt=dt_now, status="error", app=None, content=e)
+        except Exception:
+            # If logging fails, at least we printed to console above
+            pass
         return
 
 if __name__ == "__main__":

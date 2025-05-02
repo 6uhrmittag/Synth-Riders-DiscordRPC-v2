@@ -1,9 +1,10 @@
 {
-  "BtnLabel": "Synth Riders VR",
-  "BtnUrl": "https://synthridersvr.com",
   "discord_application_id": "1124356298578870333",
+  "image_upload_url": "https://uguu.se/upload",
+  "promote_preference": true,
   "song_status_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SynthRiders\\SynthRidersUC\\SongStatusOutput.txt",
   "cover_image_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SynthRiders\\SynthRidersUC\\SongStatusImage.png",
+  "synth_db_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SynthRiders\\SynthDB",
   "show_button": true,
   "button_label": "Play Synth Riders",
   "button_url": "https://synthridersvr.com"

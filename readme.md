@@ -70,10 +70,28 @@ If you want to run the application from source:
 
 If you want to build the executable yourself:
 
-1. Install PyInstaller: `pip install pyinstaller`
-2. Run: `pyinstaller --onefile --noconsole --icon=assets/logo.ico --add-data "assets;assets" main.py`
+1. For manual installation: Install PyInstaller using `pip install pyinstaller`
+2. For automated build: Run the included `build.bat` file to install dependencies and build the application in one step
+2. Run the following command to build the executable:
+
+   ```bash
+   pyinstaller --onefile --noconsole --icon=assets/logo.ico --add-data "assets/*;assets" --add-data "settings/*;settings" main.py
+   ```
+
+### Explanation of the Build Command
+
+- `--onefile`: Packages everything into a single executable file.
+- `--noconsole`: Hides the console window when running the application.
+- `--icon=assets/logo.ico`: Specifies the icon for the executable.
+- `--add-data "assets/*;assets"`: Includes all files in the `assets` folder.
+- `--add-data "settings/*;settings"`: Includes all files in the `settings` folder.
+- `main.py`: The entry point of the application.
+
+Ensure that the `assets` and `settings` folders exist and contain the required files (e.g., `logo.ico`, configuration files, etc.) before running the build command.
 
 ## Credits
 
 - Original implementation by [Original Author]
 - Synth Riders integration by [Your Name]
+
+`
