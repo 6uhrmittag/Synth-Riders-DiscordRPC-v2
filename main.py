@@ -28,7 +28,7 @@ def read_ini():
     return conf["PROFILE"]["AppVersion"]
 
 def read_server_ini():
-    url = "https://raw.githubusercontent.com/yuzune27/IfnikkiRPC/refs/heads/master/settings/appinfo.ini"
+    url = "https://raw.githubusercontent.com/6uhrmittag/Synth-Riders-DiscordRPC/refs/heads/master/settings/appinfo.ini"
     r = requests.get(url)
     conf = configparser.ConfigParser()
     conf.read_string(r.text)
@@ -62,7 +62,7 @@ class taskTray:
         self.icon = Icon(name="SynthRidersRPC", title="Synth Riders Discord RPC", icon=image, menu=menu)
 
     def open_gitpage(self):
-        url = "https://github.com/yuzune27/IfnikkiRPC/releases"
+        url = "https://github.com/6uhrmittag/Synth-Riders-DiscordRPC/releases"
         webbrowser.open(url)
 
     def stop_program(self, icon):
