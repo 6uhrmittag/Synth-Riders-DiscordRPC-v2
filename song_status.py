@@ -1,6 +1,8 @@
 import os
 import time
 import re
+import requests
+import tempfile
 
 class SongStatusWatcher:
     """
@@ -12,6 +14,7 @@ class SongStatusWatcher:
                                          "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SynthRiders\\SynthRidersUC\\SongStatusOutput.txt")
         self.cover_image_path = config.get("cover_image_path",
                                          "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SynthRiders\\SynthRidersUC\\SongStatusImage.png")
+        self.image_upload_url = config.get("image_upload_url", "https://uguu.se/upload")
         self.last_modified = 0
         self.current_song = None
         self.has_cover_image = False
@@ -35,6 +38,33 @@ class SongStatusWatcher:
         except Exception as e:
             print(f"Error checking song status file: {e}")
             return False
+
+    def upload_image(self, image_path):
+        """
+        Upload an image to uguu.se and return the URL
+        """
+        try:
+            if not os.path.exists(image_path) or os.path.getsize(image_path) == 0:
+                return None
+
+            # Upload the image
+            with open(image_path, "rb") as image_file:
+                response = requests.post(self.image_upload_url, files={"files[]": image_file})
+
+            # Parse and return the URL from response
+            if response.status_code == 200:
+                try:
+                    return response.json()["files"][0]["url"]
+                except (KeyError, IndexError, ValueError):
+                    print(f"Unexpected response format: {response.text}")
+                    return None
+            else:
+                print(f"Upload failed with status code {response.status_code}")
+                return None
+
+        except Exception as e:
+            print(f"Error uploading image: {e}")
+            return None
 
     def parse_song_status(self):
         """
@@ -85,6 +115,12 @@ class SongStatusWatcher:
             self.has_cover_image = os.path.exists(self.cover_image_path) and os.path.getsize(self.cover_image_path) > 0
             song_info['has_cover'] = self.has_cover_image
             song_info['cover_path'] = self.cover_image_path if self.has_cover_image else None
+
+            # Upload cover image if available
+            if self.has_cover_image:
+                song_info['cover_url'] = self.upload_image(self.cover_image_path)
+            else:
+                song_info['cover_url'] = None
 
             self.current_song = song_info
             return song_info

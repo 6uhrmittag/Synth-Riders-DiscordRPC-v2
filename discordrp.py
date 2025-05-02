@@ -74,15 +74,25 @@ class Presence:
                 artist = song_info.get("artist", "Unknown")
                 difficulty = song_info.get("difficulty", "Unknown")
                 mapper = song_info.get("mapper", "Unknown")
+                cover_url = song_info.get("cover_url")
 
                 # Build the update data
                 update_data = {
                     "state": f"{song_name} by {artist}",
                     "details": f"{difficulty} (mapped by {mapper})",
-                    "large_image": "game_synthriders_logo",
-                    "large_text": "Synth Riders",
                     "start": self.start_time
                 }
+
+                # Use the uploaded cover URL if available, otherwise use default logo
+                if cover_url:
+                    update_data["large_image"] = cover_url
+                    update_data["large_text"] = f"{song_name} by {artist}"
+                    # Add small logo as game icon
+                    update_data["small_image"] = "game_synthriders_logo"
+                    update_data["small_text"] = "Synth Riders"
+                else:
+                    update_data["large_image"] = "game_synthriders_logo"
+                    update_data["large_text"] = "Synth Riders"
 
                 # Add button if configured
                 if config.get("show_button", True):
