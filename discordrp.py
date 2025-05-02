@@ -63,7 +63,7 @@ class Presence:
                 # No active song, set idle status
                 self.rpc.update(
                     state="Idle",
-                    details="Not playing a song",
+                    details="looking for a song to play",
                     large_image="game_synthriders_logo",
                     large_text="Synth Riders",
                     start=self.start_time
@@ -76,14 +76,18 @@ class Presence:
                 mapper = song_info.get("mapper", "Unknown")
                 cover_url = song_info.get("cover_url")
 
+                song_name = song_info.get("song_name", "Unknown")
+                bpm = song_info.get("bpm", "Unknown")
+                year= song_info.get("year", "")
+
                 # Get song duration and start time for progress bar
                 duration = song_info.get("duration")  # Duration in seconds
                 song_start_time = song_info.get("start_time")  # When the song started
 
                 # Build the update data
                 update_data = {
-                    "state": f"{song_name} by {artist}",
-                    "details": f"{difficulty} (mapped by {mapper})"
+                    "details": f"{song_name} by {artist}",
+                    "state": f"{difficulty} | {bpm} BPM | mapped by {mapper})",
                 }
 
                 # Add progress bar if we have song duration
