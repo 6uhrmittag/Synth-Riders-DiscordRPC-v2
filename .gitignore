@@ -1,0 +1,8 @@
+/.venv
+/build
+/dist
+/.idea
+/log
+icon.PNG
+readme.txt
+/tests
