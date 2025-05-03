@@ -75,10 +75,8 @@ class Presence:
                 difficulty = song_info.get("difficulty", "Unknown")
                 mapper = song_info.get("mapper", "Unknown")
                 cover_url = song_info.get("cover_url")
-
-                song_name = song_info.get("song_name", "Unknown")
-                bpm = song_info.get("bpm", "Unknown")
-                year= song_info.get("year", "")
+                bpm = song_info.get("bpm") or "Unknown"
+                year = song_info.get("year", "")
 
                 # Get song duration and start time for progress bar
                 duration = song_info.get("duration")  # Duration in seconds
@@ -125,3 +123,4 @@ class Presence:
             print(f"Failed to update Discord presence: {e}")
             self.connected = False
             return False
+
