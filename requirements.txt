@@ -10,6 +10,7 @@ pystray>=0.19.0
 requests>=2.27.0
 configparser>=5.2.0
 pypresence>=4.2.0
+srt>=3.5.3
 
 # Build dependencies
 pyinstaller>=5.6.0
