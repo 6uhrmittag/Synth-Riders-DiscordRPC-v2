@@ -120,15 +120,59 @@ def process_check():
                 return proc.pid
     return False
 
-def rpc_loop(presence, song_watcher, config):
+def log_song_event(dt, event_type, song_info):
+    """
+    Log song start/stop events with all available song info.
+    event_type: 'start' or 'stop'
+    song_info: dict with song details or None
+    """
+    log_dir = os.path.join(script_dir, "log")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = f"rpc{dt}.log"
+    log_path = os.path.join(log_dir, log_file)
+    try:
+        logging.basicConfig(
+            filename=log_path,
+            encoding="utf-8",
+            level=logging.INFO,
+            format="[%(asctime)s] %(message)s",
+            force=True
+        )
+        logger = logging.getLogger("song_event")
+        if event_type == 'start' and song_info:
+            logger.info(f"SONG START: {json.dumps(song_info, ensure_ascii=False)}")
+        elif event_type == 'stop' and song_info:
+            logger.info(f"SONG STOP: {json.dumps(song_info, ensure_ascii=False)}")
+        elif event_type == 'stop' and not song_info:
+            logger.info("SONG STOP: No song info available.")
+    except Exception as e:
+        print(f"Failed to write song event to log: {e}")
+
+def rpc_loop(presence, song_watcher, config, dt_now=None):
+    prev_song_id = None
+    prev_song_info = None
+    if dt_now is None:
+        dt_now = datetime.now().strftime("%Y%m%d%H%M%S%f")
     while True:
         if process_check():
-            # Game is running, check for song updates
             song_info = song_watcher.get_song_status()
+            # Detect song start
+            song_id = song_info.get('song_id') if song_info else None
+            if song_id and song_id != prev_song_id:
+                log_song_event(dt_now, 'start', song_info)
+            # Detect song stop
+            if prev_song_id and not song_id:
+                log_song_event(dt_now, 'stop', prev_song_info)
+            prev_song_id = song_id
+            prev_song_info = song_info if song_id else None
             presence.update_song_status(song_info, config)
             time.sleep(5)  # Check for updates every 5 seconds
         else:
-            # Game is not running
+            # If a song was playing, log stop event
+            if prev_song_id:
+                log_song_event(dt_now, 'stop', prev_song_info)
+                prev_song_id = None
+                prev_song_info = None
             presence.update_song_status(None, config)
             time.sleep(15)  # Check less frequently when game is not running
 
@@ -210,7 +254,7 @@ def app_run():
                     except Exception:
                         # Continue if logging fails
                         pass
-                    rpc_loop(presence, song_watcher, config)
+                    rpc_loop(presence, song_watcher, config, dt_now=dt_now)
                 else:
                     try:
                         log_write(dt=dt_now, status="ok", app=False, content=None)
@@ -238,4 +282,3 @@ def app_run():
 if __name__ == "__main__":
     Thread(target=app_run, daemon=True).start()
     taskTray().run_program()
-
