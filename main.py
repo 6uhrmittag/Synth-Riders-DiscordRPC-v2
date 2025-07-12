@@ -192,12 +192,13 @@ def write_srt_event(dt, event_type, song_info, srt_state):
     with open(srt_path, 'w', encoding='utf-8') as f:
         f.write(srt.compose(subtitles))
 
-def rpc_loop(presence, song_watcher, config, dt_now=None):
+def rpc_loop(presence, song_watcher, config, dt_now=None, srt_state=None):
     prev_song_id = None
     prev_song_info = None
-    srt_state = {'index': 0, 'last_end': timedelta(seconds=0)}
     if dt_now is None:
         dt_now = datetime.now().strftime("%Y%m%d%H%M%S%f")
+    if srt_state is None:
+        srt_state = {'index': 0, 'last_end': timedelta(seconds=0)}
     while True:
         if process_check():
             song_info = song_watcher.get_song_status()
@@ -205,34 +206,16 @@ def rpc_loop(presence, song_watcher, config, dt_now=None):
             if song_id and song_id != prev_song_id:
                 log_song_event(dt_now, 'start', song_info)
                 write_srt_event(dt_now, 'start', song_info, srt_state)
-            # Detect song stop
             if prev_song_id and not song_id:
                 log_song_event(dt_now, 'stop', prev_song_info)
                 write_srt_event(dt_now, 'stop', prev_song_info, srt_state)
             prev_song_id = song_id
             prev_song_info = song_info if song_id else None
             presence.update_song_status(song_info, config)
-            time.sleep(5)  # Check for updates every 5 seconds
+            time.sleep(5)
         else:
-            # If a song was playing, log stop event
-            if prev_song_id:
-                log_song_event(dt_now, 'stop', prev_song_info)
-                write_srt_event(dt_now, 'stop', prev_song_info, srt_state)
-                prev_song_id = None
-                prev_song_info = None
-            # Write idle SRT event
-            write_srt_event(dt_now, 'idle', None, srt_state)
-            presence.update_song_status(None, config)
-            time.sleep(15)  # Check less frequently when game is not running
-
-            # If game was closed and restarted, we should check again sooner
-            if process_check():
-                continue
-
-            # Game still not running after waiting
             break
-
-    # Disconnect when done
+    presence.update_song_status(None, config)
     presence.disconnect()
 
 def log_write(dt, status, app, content):
@@ -273,60 +256,63 @@ import asyncio
 
 def app_run():
     dt_now = datetime.now().strftime("%Y%m%d%H%M%S%f")
-    
-    try:
-        # Set up an event loop for this thread
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        
-        # First, try to write a test log entry to verify logging works
+    last_seen_running = time.time()
+    not_running_since = None
+    idle_timeout = 10 * 60  # 10 minutes in seconds
+    rpc_active = False
+    srt_state = None
+    while True:
         try:
-            log_write(dt=dt_now, status="ok", app=None, content="Starting application")
-        except Exception as log_error:
-            print(f"Warning: Logging setup failed: {log_error}")
-            # Continue without file logging if it fails
-        
-        config = get_config()
-
-        # Initialize Discord Rich Presence
-        discord_app_id = config.get("discord_application_id", "1124356298578870333")
-        presence = Presence(discord_app_id)
-
-        # Initialize Song Status Watcher
-        song_watcher = SongStatusWatcher(config)
-
-        while True:
-            try:
-                pid = process_check()
-                if pid:
+            pid = process_check()
+            if pid:
+                # If game is running again after being stopped, start new log/SRT
+                if not rpc_active:
+                    dt_now = datetime.now().strftime("%Y%m%d%H%M%S%f")
+                    srt_state = {'index': 0, 'last_end': timedelta(seconds=0)}
                     try:
                         log_write(dt=dt_now, status="ok", app=pid, content=None)
                     except Exception:
-                        # Continue if logging fails
                         pass
-                    rpc_loop(presence, song_watcher, config, dt_now=dt_now)
-                else:
+                    rpc_active = True
+                last_seen_running = time.time()
+                not_running_since = None
+                rpc_loop(presence, song_watcher, config, dt_now=dt_now, srt_state=srt_state)
+            else:
+                if rpc_active:
+                    # Mark the time when the process stopped
+                    if not not_running_since:
+                        not_running_since = time.time()
+                    # Write idle SRT event
+                    if srt_state is None:
+                        srt_state = {'index': 0, 'last_end': timedelta(seconds=0)}
+                    write_srt_event(dt_now, 'idle', None, srt_state)
                     try:
                         log_write(dt=dt_now, status="ok", app=False, content=None)
                     except Exception:
-                        # Continue if logging fails
                         pass
-                time.sleep(15)
-            except Exception as e:
-                print(f"Error in main loop: {e}")
-                try:
-                    log_write(dt=dt_now, status="error", app=None, content=e)
-                except Exception:
-                    # If logging itself fails, just print to console
+                    # If not running for more than 10 minutes, finish log/SRT and reset
+                    if time.time() - not_running_since > idle_timeout:
+                        # Optionally, write a closing entry to log/SRT
+                        try:
+                            log_write(dt=dt_now, status="ok", app=None, content="Session ended after 10 minutes idle.")
+                        except Exception:
+                            pass
+                        write_srt_event(dt_now, 'idle', None, srt_state)
+                        rpc_active = False
+                        dt_now = None
+                        srt_state = None
+                else:
+                    # Not running and not active, just idle
                     pass
-                break
-    except Exception as e:
-        print(f"Critical error in app_run: {e}")
-        try:
-            log_write(dt=dt_now, status="error", app=None, content=e)
-        except Exception:
-            # If logging fails, at least we printed to console above
-            pass
-        return
+            time.sleep(5)
+        except Exception as e:
+            print(f"Error in main loop: {e}")
+            try:
+                if dt_now:
+                    log_write(dt=dt_now, status="error", app=None, content=e)
+            except Exception:
+                pass
+            break
 
 if __name__ == "__main__":
     Thread(target=app_run, daemon=True).start()
