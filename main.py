@@ -12,6 +12,8 @@ import configparser
 import requests
 import webbrowser
 import asyncio
+import srt
+from datetime import timedelta
 
 # Import our new song status watcher
 from song_status import SongStatusWatcher
@@ -148,21 +150,65 @@ def log_song_event(dt, event_type, song_info):
     except Exception as e:
         print(f"Failed to write song event to log: {e}")
 
+def write_srt_event(dt, event_type, song_info, srt_state):
+    """
+    Write an SRT file with a 5 second subtitle block for song start/stop or idle.
+    event_type: 'start', 'stop', or 'idle'
+    song_info: dict with song details or None
+    srt_state: dict to keep track of subtitle index and last end time
+    """
+    log_dir = os.path.join(script_dir, "log")
+    os.makedirs(log_dir, exist_ok=True)
+    srt_file = f"rpc{dt}.srt"
+    srt_path = os.path.join(log_dir, srt_file)
+
+    # Determine subtitle text
+    if event_type == 'start' and song_info:
+        text = f"START: {song_info.get('artist', 'Unknown')} - {song_info.get('song_name', 'Unknown')}"
+    elif event_type == 'stop' and song_info:
+        text = f"STOP: {song_info.get('artist', 'Unknown')} - {song_info.get('song_name', 'Unknown')}"
+    else:
+        text = "ideingling"
+
+    # Determine start and end time for the subtitle
+    # Use last end time if available, else start at 0
+    start_td = srt_state.get('last_end', timedelta(seconds=0))
+    end_td = start_td + timedelta(seconds=5)
+    srt_state['last_end'] = end_td
+
+    # Increment subtitle index
+    srt_state['index'] = srt_state.get('index', 0) + 1
+    subtitle = srt.Subtitle(index=srt_state['index'], start=start_td, end=end_td, content=text)
+
+    # Append to SRT file (read existing, add, write back)
+    subtitles = []
+    if os.path.exists(srt_path):
+        with open(srt_path, 'r', encoding='utf-8') as f:
+            try:
+                subtitles = list(srt.parse(f.read()))
+            except Exception:
+                subtitles = []
+    subtitles.append(subtitle)
+    with open(srt_path, 'w', encoding='utf-8') as f:
+        f.write(srt.compose(subtitles))
+
 def rpc_loop(presence, song_watcher, config, dt_now=None):
     prev_song_id = None
     prev_song_info = None
+    srt_state = {'index': 0, 'last_end': timedelta(seconds=0)}
     if dt_now is None:
         dt_now = datetime.now().strftime("%Y%m%d%H%M%S%f")
     while True:
         if process_check():
             song_info = song_watcher.get_song_status()
-            # Detect song start
             song_id = song_info.get('song_id') if song_info else None
             if song_id and song_id != prev_song_id:
                 log_song_event(dt_now, 'start', song_info)
+                write_srt_event(dt_now, 'start', song_info, srt_state)
             # Detect song stop
             if prev_song_id and not song_id:
                 log_song_event(dt_now, 'stop', prev_song_info)
+                write_srt_event(dt_now, 'stop', prev_song_info, srt_state)
             prev_song_id = song_id
             prev_song_info = song_info if song_id else None
             presence.update_song_status(song_info, config)
@@ -171,8 +217,11 @@ def rpc_loop(presence, song_watcher, config, dt_now=None):
             # If a song was playing, log stop event
             if prev_song_id:
                 log_song_event(dt_now, 'stop', prev_song_info)
+                write_srt_event(dt_now, 'stop', prev_song_info, srt_state)
                 prev_song_id = None
                 prev_song_info = None
+            # Write idle SRT event
+            write_srt_event(dt_now, 'idle', None, srt_state)
             presence.update_song_status(None, config)
             time.sleep(15)  # Check less frequently when game is not running
 
