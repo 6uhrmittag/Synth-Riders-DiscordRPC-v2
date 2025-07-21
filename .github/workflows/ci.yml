@@ -1,0 +1,245 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run smoke tests
+      run: |
+        python tests/run_smoke_tests.py
+        
+    - name: Run unit tests with coverage
+      run: |
+        pip install pytest pytest-cov
+        python -m pytest tests/ --cov=. --cov-report=xml --cov-report=html
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  build-windows:
+    name: Build Windows Executable
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install -r requirements.txt
+        
+    - name: Build application
+      run: |
+        # Clean build directories
+        if exist build rmdir /s /q build
+        if exist dist rmdir /s /q dist
+        
+        # Build with PyInstaller
+        pyinstaller --clean main.spec
+        
+        # Copy settings directory
+        if exist settings (
+          xcopy /E /I /Y settings dist\settings
+        )
+        
+    - name: Verify build output
+      run: |
+        # Check if executable exists
+        if not exist "dist\main.exe" (
+          echo "Build failed: main.exe not found"
+          exit 1
+        )
+        
+        # Check if settings directory was copied
+        if not exist "dist\settings" (
+          echo "Build failed: settings directory not found"
+          exit 1
+        )
+        
+        # Display version information
+        if exist "dist\settings\appinfo.ini" (
+          echo "Application version:"
+          findstr "AppVersion" dist\settings\appinfo.ini
+        )
+        
+        echo "Build verification completed successfully"
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: windows-executable
+        path: dist/
+        retention-days: 30
+
+  build-linux:
+    name: Build Linux Executable
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install -r requirements.txt
+        
+    - name: Build application
+      run: |
+        # Clean build directories
+        rm -rf build dist
+        
+        # Build with PyInstaller
+        pyinstaller --clean main.spec
+        
+        # Copy settings directory
+        if [ -d "settings" ]; then
+          cp -r settings dist/
+        fi
+        
+    - name: Verify build output
+      run: |
+        # Check if executable exists
+        if [ ! -f "dist/main" ]; then
+          echo "Build failed: main executable not found"
+          exit 1
+        fi
+        
+        # Check if settings directory was copied
+        if [ ! -d "dist/settings" ]; then
+          echo "Build failed: settings directory not found"
+          exit 1
+        fi
+        
+        # Display version information
+        if [ -f "dist/settings/appinfo.ini" ]; then
+          echo "Application version:"
+          grep "AppVersion" dist/settings/appinfo.ini
+        fi
+        
+        echo "Build verification completed successfully"
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: linux-executable
+        path: dist/
+        retention-days: 30
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [test, build-windows, build-linux]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Get version
+      id: get_version
+      run: |
+        VERSION=$(grep "AppVersion" settings/appinfo.ini | cut -d'=' -f2 | tr -d ' ')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.get_version.outputs.version }}
+        name: Release v${{ steps.get_version.outputs.version }}
+        body: |
+          ## Synth Riders Discord RPC v${{ steps.get_version.outputs.version }}
+          
+          ### Changes
+          - Automated build and test pipeline
+          - Cross-platform executable generation
+          - Comprehensive smoke test coverage
+          
+          ### Downloads
+          - Windows: `main.exe`
+          - Linux: `main`
+          
+          ### Installation
+          1. Download the appropriate executable for your platform
+          2. Extract to a folder
+          3. Run the executable
+          4. The tool will appear in your system tray
+          
+          ### Features
+          - Real-time Synth Riders song status monitoring
+          - Discord Rich Presence integration
+          - Cover image display
+          - Song metadata from SynthDB
+          - System tray interface
+          - Logging and SRT subtitle generation
+        draft: false
+        prerelease: false
+        files: |
+          dist/main.exe
+          dist/main
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
