@@ -177,6 +177,28 @@ jobs:
         name: linux-executable
         path: linux-dist/
         
+    - name: Build Windows Installer
+      shell: cmd
+      run: |
+        REM Check if NSIS is available
+        where makensis >nul 2>&1
+        if %errorlevel% neq 0 (
+          echo "NSIS not available, skipping installer build"
+          exit 0
+        )
+        
+        REM Get version
+        for /f "tokens=2 delims==" %%i in ('findstr "AppVersion" settings/appinfo.ini') do set VERSION=%%i
+        set VERSION=%VERSION: =%
+        
+        REM Build installer
+        makensis /DAPP_VERSION=%VERSION% installer/setup.nsi
+        
+        REM Copy installer to release directory
+        if exist "SynthRidersDiscordRPC-Setup-v%VERSION%.exe" (
+          copy "SynthRidersDiscordRPC-Setup-v%VERSION%.exe" "windows-dist/"
+        )
+        
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
@@ -189,16 +211,32 @@ jobs:
           - Automated build and test pipeline
           - Cross-platform executable generation
           - Comprehensive smoke test coverage
+          - Windows installer with setup wizard
           
           ### Downloads
-          - Windows: `main.exe`
-          - Linux: `main`
+          - **Windows Installer**: `SynthRidersDiscordRPC-Setup-v${{ steps.get_version.outputs.version }}.exe` (Recommended)
+          - **Windows Portable**: `main.exe` + settings folder
+          - **Linux**: `main` executable
           
           ### Installation
-          1. Download the appropriate executable for your platform
+          
+          #### Windows (Recommended)
+          1. Download `SynthRidersDiscordRPC-Setup-v${{ steps.get_version.outputs.version }}.exe`
+          2. Run the installer
+          3. Follow the setup wizard
+          4. The tool will start automatically and appear in your system tray
+          
+          #### Windows (Portable)
+          1. Download the `windows-dist` folder
           2. Extract to a folder
-          3. Run the executable
+          3. Run `main.exe`
           4. The tool will appear in your system tray
+          
+          #### Linux
+          1. Download the `linux-dist` folder
+          2. Extract to a folder
+          3. Make executable: `chmod +x main`
+          4. Run: `./main`
           
           ### Features
           - Real-time Synth Riders song status monitoring
@@ -207,11 +245,13 @@ jobs:
           - Song metadata from SynthDB
           - System tray interface
           - Logging and SRT subtitle generation
+          - Professional Windows installer
+          - Automatic startup integration
         draft: false
         prerelease: false
         files: |
-          windows-dist/main.exe
-          linux-dist/main
+          windows-dist/
+          linux-dist/
         fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

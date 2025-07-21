@@ -27,10 +27,23 @@ A Discord Rich Presence integration for Synth Riders that shows your currently p
 
 ## Installation
 
-1. Download the latest release from the [Releases page](https://github.com/yourusername/Synth-Riders-DiscordRPCv2/releases)
-2. Extract the ZIP file to a location of your choice
-3. Run `Synth Riders DiscordRPC.exe`
-4. The application will start in the system tray
+### Windows (Recommended)
+1. Download `SynthRidersDiscordRPC-Setup-v2.0.0.exe` from the [Releases page](https://github.com/yourusername/Synth-Riders-DiscordRPCv2/releases)
+2. Run the installer and follow the setup wizard
+3. The tool will start automatically and appear in your system tray
+4. The installer creates start menu shortcuts and desktop shortcut
+
+### Windows (Portable)
+1. Download the `windows-dist` folder from the [Releases page](https://github.com/yourusername/Synth-Riders-DiscordRPCv2/releases)
+2. Extract the files to a folder
+3. Run `main.exe`
+4. The tool will appear in your system tray
+
+### Linux
+1. Download the `linux-dist` folder from the [Releases page](https://github.com/yourusername/Synth-Riders-DiscordRPCv2/releases)
+2. Extract the files to a folder
+3. Make executable: `chmod +x main`
+4. Run: `./main`
 
 ## Configuration
 

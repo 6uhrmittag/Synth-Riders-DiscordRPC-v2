@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('assets/*', 'assets'), ('settings/*', 'settings'), ('utils/*', 'utils')],
+    datas=[('assets/*', 'assets'), ('settings/*', 'settings'), ('utils/*', 'utils'), ('installer/config_merger.ps1', '.')],
     hiddenimports=['utils.synth_db'],
     hookspath=[],
     hooksconfig={},
