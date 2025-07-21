@@ -177,27 +177,53 @@ jobs:
         name: linux-executable
         path: linux-dist/
         
-    - name: Build Windows Installer
-      shell: cmd
+    - name: Install NSIS
+      shell: powershell
       run: |
-        REM Check if NSIS is available
-        where makensis >nul 2>&1
-        if %errorlevel% neq 0 (
-          echo "NSIS not available, skipping installer build"
-          exit 0
-        )
+        Write-Host "Installing NSIS..."
         
-        REM Get version
-        for /f "tokens=2 delims==" %%i in ('findstr "AppVersion" settings/appinfo.ini') do set VERSION=%%i
-        set VERSION=%VERSION: =%
+        # Download NSIS portable version
+        $nsisUrl = "https://github.com/NSIS/NSIS/releases/download/v3.09/nsis-3.09.zip"
+        $nsisZip = "nsis.zip"
+        $nsisDir = "nsis"
         
-        REM Build installer
-        makensis /DAPP_VERSION=%VERSION% installer/setup.nsi
+        # Download NSIS
+        Invoke-WebRequest -Uri $nsisUrl -OutFile $nsisZip
         
-        REM Copy installer to release directory
-        if exist "SynthRidersDiscordRPC-Setup-v%VERSION%.exe" (
-          copy "SynthRidersDiscordRPC-Setup-v%VERSION%.exe" "windows-dist/"
-        )
+        # Extract NSIS
+        Expand-Archive -Path $nsisZip -DestinationPath $nsisDir -Force
+        
+        # Add NSIS to PATH for this session
+        $env:PATH = "$PWD\$nsisDir\makensis.exe;$env:PATH"
+        
+        # Verify installation
+        if (Test-Path "$PWD\$nsisDir\makensis.exe") {
+          Write-Host "NSIS installed successfully"
+        } else {
+          Write-Host "NSIS installation failed"
+          exit 1
+        }
+        
+    - name: Build Windows Installer
+      shell: powershell
+      run: |
+        # Get version
+        $version = (Get-Content "settings/appinfo.ini" | Select-String "AppVersion" | ForEach-Object { $_.ToString().Split('=')[1].Trim() })
+        Write-Host "Building installer for version $version..."
+        
+        # Build installer using the installed NSIS
+        $nsisPath = "$PWD\nsis\makensis.exe"
+        & $nsisPath "/DAPP_VERSION=$version" "installer/setup.nsi"
+        
+        # Check if installer was created
+        $installerName = "SynthRidersDiscordRPC-Setup-v$version.exe"
+        if (Test-Path $installerName) {
+          Write-Host "Installer created successfully: $installerName"
+          Copy-Item $installerName "windows-dist/"
+        } else {
+          Write-Host "Installer creation failed"
+          exit 1
+        }
         
     - name: Create Windows Portable ZIP
       shell: cmd
