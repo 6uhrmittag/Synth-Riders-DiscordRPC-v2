@@ -36,18 +36,24 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
+if exist settings (
+    echo Copying settings directory to dist...
+    xcopy /E /I /Y settings dist\settings
+) else (
+    echo Settings directory not found, skipping copy.
+)
+
 echo.
 echo Build completed successfully!
 echo The executable can be found in the dist folder.
 echo.
 
 REM Display version information
-if exist settings\appinfo.ini (
-    for /f "tokens=2 delims==" %%a in ('findstr "AppVersion" settings\appinfo.ini') do set APP_VERSION=%%a
+if exist dist\settings\appinfo.ini (
+    for /f "tokens=2 delims==" %%a in ('findstr "AppVersion" dist\settings\appinfo.ini') do set APP_VERSION=%%a
     echo Application version: %APP_VERSION%
     echo.
 )
-
 
 
 pause
