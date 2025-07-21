@@ -34,6 +34,16 @@
 - `codecov/codecov-action@v3` → `codecov/codecov-action@v4`
 - `actions/download-artifact@v3` → `actions/download-artifact@v4`
 
+### 5. Release Action Issues
+**Problem**: Release action failing with 403 errors and file path mismatches
+**Solution**: Updated release action and fixed permissions
+
+**Changes**:
+- `softprops/action-gh-release@v1` → `softprops/action-gh-release@v2`
+- Added `permissions: contents: write` to release jobs
+- Fixed file paths to match artifact locations
+- Added `fail_on_unmatched_files: false` for better error handling
+
 ## Key Changes Made
 
 ### Test Workflow (`.github/workflows/test.yml`)
@@ -76,6 +86,26 @@ strategy:
   run: |
     if exist build rmdir /s /q build
     if exist dist rmdir /s /q dist
+```
+
+### Release Action Steps
+```yaml
+# Before (v1 with permission issues)
+- uses: softprops/action-gh-release@v1
+  with:
+    files: |
+      dist/main.exe
+      dist/main
+
+# After (v2 with proper permissions)
+- uses: softprops/action-gh-release@v2
+  with:
+    files: |
+      windows-dist/main.exe
+      linux-dist/main
+    fail_on_unmatched_files: false
+  permissions:
+    contents: write
 ```
 
 ## Expected Results
