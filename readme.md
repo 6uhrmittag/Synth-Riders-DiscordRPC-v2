@@ -1,3 +1,9 @@
+> WORK-IN-PROGRESS - DO NOT USE YET
+> Experiment based on https://github.com/yuzune27/IfnikkiRPC/tree/master
+>
+>
+> Use stable: https://github.com/6uhrmittag/Synth-Riders-DiscordRPC
+
 # Synth Riders Discord Rich Presence
 
 A Discord Rich Presence integration for Synth Riders that shows your currently playing song in your Discord status.
