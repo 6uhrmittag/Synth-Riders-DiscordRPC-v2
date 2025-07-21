@@ -79,6 +79,7 @@ jobs:
         pip install -r requirements.txt
         
     - name: Build application
+      shell: cmd
       run: |
         # Clean build directories
         if exist build rmdir /s /q build
@@ -93,6 +94,7 @@ jobs:
         )
         
     - name: Verify build output
+      shell: cmd
       run: |
         # Check if executable exists
         if not exist "dist\main.exe" (
