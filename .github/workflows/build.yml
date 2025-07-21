@@ -199,6 +199,20 @@ jobs:
           copy "SynthRidersDiscordRPC-Setup-v%VERSION%.exe" "windows-dist/"
         )
         
+    - name: Create Windows Portable ZIP
+      shell: cmd
+      run: |
+        REM Create portable ZIP for Windows
+        powershell.exe -Command "Compress-Archive -Path 'windows-dist\*' -DestinationPath 'windows-executable.zip' -Force"
+        
+        REM Verify ZIP was created
+        if exist "windows-executable.zip" (
+          echo "Windows portable ZIP created successfully"
+        ) else (
+          echo "Failed to create Windows portable ZIP"
+          exit 1
+        )
+        
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
@@ -215,7 +229,7 @@ jobs:
           
           ### Downloads
           - **Windows Installer**: `SynthRidersDiscordRPC-Setup-v${{ steps.get_version.outputs.version }}.exe` (Recommended)
-          - **Windows Portable**: `main.exe` + settings folder
+          - **Windows Portable**: `windows-executable.zip` (Extract and run)
           - **Linux**: `main` executable
           
           ### Installation
@@ -227,8 +241,8 @@ jobs:
           4. The tool will start automatically and appear in your system tray
           
           #### Windows (Portable)
-          1. Download the `windows-dist` folder
-          2. Extract to a folder
+          1. Download `windows-executable.zip`
+          2. Extract the ZIP file to a folder
           3. Run `main.exe`
           4. The tool will appear in your system tray
           
@@ -252,6 +266,7 @@ jobs:
         files: |
           windows-dist/
           linux-dist/
+          windows-executable.zip
         fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

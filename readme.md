@@ -34,8 +34,8 @@ A Discord Rich Presence integration for Synth Riders that shows your currently p
 4. The installer creates start menu shortcuts and desktop shortcut
 
 ### Windows (Portable)
-1. Download the `windows-dist` folder from the [Releases page](https://github.com/yourusername/Synth-Riders-DiscordRPCv2/releases)
-2. Extract the files to a folder
+1. Download `windows-executable.zip` from the [Releases page](https://github.com/yourusername/Synth-Riders-DiscordRPCv2/releases)
+2. Extract the ZIP file to a folder
 3. Run `main.exe`
 4. The tool will appear in your system tray
 
