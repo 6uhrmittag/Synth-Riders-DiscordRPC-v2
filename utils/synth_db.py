@@ -13,6 +13,7 @@ def get_song_details_from_synthdb(db_path, song_name, artist):
     Returns:
         dict: A dictionary containing song details or None if not found
     """
+    conn = None
     try:
         if not os.path.exists(db_path):
             print(f"SynthDB path does not exist: {db_path}")
@@ -61,7 +62,6 @@ def get_song_details_from_synthdb(db_path, song_name, artist):
             'is_custom': True  # Default to custom song
         }
 
-        conn.close()
         return song_details
 
     except sqlite3.Error as e:
